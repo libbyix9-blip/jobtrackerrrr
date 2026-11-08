@@ -1,0 +1,7 @@
+import {test} from 'node:test';import assert from 'node:assert/strict';import {readFileSync} from 'node:fs';import {SourceTextModule,createContext,SyntheticModule} from 'node:vm';
+test('actual tracker module opens the vault setup on a Pages project path with no backend',async()=>{
+ const app={innerHTML:''};const context=createContext({console,URL,crypto,TextEncoder,TextDecoder,Uint8Array,btoa,atob,structuredClone,setTimeout,clearTimeout,setInterval:()=>0,localStorage:{getItem:()=>null},document:{querySelector:s=>s==='#app'?app:{close(){}},addEventListener(){}},fetch:async()=>({status:404}),Date});
+ const modules=new Map();async function get(path){if(modules.has(path))return modules.get(path);const m=new SourceTextModule(readFileSync(path,'utf8'),{context,initializeImportMeta(meta){meta.url='https://example.test/jobtrackerrrr/'+path;}});modules.set(path,m);await m.link(spec=>get(spec.replace('./','')));return m;}
+ await(await get('tracker.mjs')).evaluate();assert.match(app.innerHTML,/Let’s make this yours/);assert.match(app.innerHTML,/Create my tracker/);assert.doesNotMatch(app.innerHTML,/preview|Render|backend not connected/);
+});
+test('page uses relative assets, light styling and reduced-motion support',()=>{const html=readFileSync('index.html','utf8'),css=readFileSync('tracker.css','utf8');assert.doesNotMatch(html,/(?:src|href)="\/(?!\/)/);assert.match(css,/#f5f6f1/);assert.match(css,/prefers-reduced-motion/);});
