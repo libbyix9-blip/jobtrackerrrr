@@ -6,7 +6,7 @@ A light sage-green application tracker with three views: Applications, To review
 
 ## First use
 
-1. Create a passphrase of at least 16 characters on the website. Never send it to chat.
+1. Create a passphrase of at least 8 characters on the website. Never send it to chat.
 2. The browser creates an RSA-OAEP key pair and encrypts the private key with a passphrase-derived AES key. The downloaded `careeros-sync-key.json` contains only the public encryption key and encrypted private-key envelope.
 3. Ask chat to check Gmail and use the downloaded sync key. Chat can encrypt updates using the public key without knowing the passphrase.
 4. Only `inbox.enc.json`, containing an encrypted envelope, is committed and published. Open the page and load the latest update to decrypt it locally.

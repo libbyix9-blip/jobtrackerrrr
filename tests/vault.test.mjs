@@ -27,3 +27,5 @@ test('imports deduplicate stable IDs, ignore deleted records and never regress n
 });
 
 test('publication envelope rejects plaintext extras and unencrypted private key fields',()=>{assert.throws(()=>checkEnvelope({...created.vault,applications:[]}),/supported/);assert.throws(()=>checkEnvelope({...created.vault,publicKey:{...created.vault.publicKey,d:'private-material'}}),/unprotected/);assert.throws(()=>checkEnvelope({...created.vault,privateKey:{...created.vault.privateKey,password:'plaintext'}}),/unprotected/);});
+
+test("eight-character passphrases are accepted and shorter ones rejected",async()=>{await assert.rejects(createVault("short"),/at least 8/);const result=await createVault("testpass");const key=await unlockVault(result.vault,"testpass");assert.equal(key.extractable,false);});
