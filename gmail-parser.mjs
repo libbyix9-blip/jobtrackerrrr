@@ -13,8 +13,8 @@ export function parseMessage(message){
  else if(/(?:pleased to offer|offer of employment|formal offer|offer letter)/i.test(signal)){status='Offer';kind='offer';}
  else if(/(?:invite you .{0,50}interview|schedule .{0,50}interview|interview (?:invitation|availability|confirmation|with)|(?:^|\n)(?:re: )?interview\b|availability .{0,50}interview|next round|(?:phone|video|introductory) (?:screen|interview))/i.test(signal)){status='Interviewing';kind='interview';}
  else if(/(?:complete .{0,40}assessment|assessment invitation|take.home (?:exercise|assignment))/i.test(signal)){status='Assessment';kind='assessment';}
- else if(/(?:reaching out|came across your (?:profile|background)|your (?:profile|background|experience) .{0,60}(?:impressed|fit|interest)|interested in .{0,50}(?:opportunity|role|position)|discuss .{0,50}(?:opportunity|role|position)|recruiting .{0,50}(?:role|position)|(?:availability|schedule|arrange) .{0,40}(?:recruiter|recruiting|introductory) (?:call|chat)|following up .{0,70}(?:interview|application|opportunity)|background check|reference check)/i.test(signal)){status='Recruiter Contact';kind='outreach';}
- else if(/(?:thank you for (?:your interest|applying|submitting your application)|application (?:received|confirmation)|received your application)/i.test(signal)){status='Applied';kind='confirmation';}
+ else if(/(?:reaching out|came across your (?:profile|background)|your (?:profile|background|experience) .{0,60}(?:impressed|fit|interest)|interested in .{0,50}(?:opportunity|role|position)|discuss .{0,50}(?:opportunity|role|position)|recruiting .{0,50}(?:role|position)|(?:availability|schedule|arrange) .{0,40}(?:recruiter|recruiting|introductory) (?:call|chat)|following up .{0,70}(?:interview|application|opportunity)|thank you for your interest|background check|reference check)/i.test(signal)){status='Recruiter Contact';kind='outreach';}
+ else if(/(?:thank you for (?:applying|submitting your application)|application (?:received|confirmation)|received your application)/i.test(signal)){status='Applied';kind='confirmation';}
  else return null;
  const pair=text.match(/(?:application for|applying for|interest in) (?:the )?(.{3,150}?) (?:role |position )?at ([^\n.!]{2,80})/i);
  const company=pair?.[2]?.trim()??'',title=pair?.[1]?.replace(/ (?:role|position)$/i,'').trim()??'';
@@ -34,7 +34,7 @@ export function integrateMessages(current,messages){
   const old=candidates.length===1?candidates[0]:null;
   if(old){
    if(old.manualOverride&&event.status!==old.status&&event.updatedAt>old.updatedAt){next.reviews.push({...event,applicationId:old.id,company:old.company,title:old.title,reason:'This email suggests a different status from your manual edit. Confirm before changing it.'});}
-   else {old.evidence=[...(old.evidence??[]),...event.evidence];if(event.updatedAt>old.updatedAt&&!old.manualOverride)Object.assign(old,{status:event.status,summary:event.summary,updatedAt:event.updatedAt,lastResponseAt:event.updatedAt.slice(0,10)});}
+   else {old.evidence=[...(old.evidence??[]),...event.evidence];if(event.updatedAt>old.updatedAt&&!old.manualOverride)Object.assign(old,{status:event.kind==='outreach'&&['Interviewing','Assessment','Offer','Rejected','Withdrawn'].includes(old.status)?old.status:event.status,summary:event.summary,updatedAt:event.updatedAt,lastResponseAt:event.updatedAt.slice(0,10)});}
   }else if(event.company&&event.title&&event.kind==='confirmation'){next.applications.push(event);}
   else next.reviews.push(event);
   added++;
