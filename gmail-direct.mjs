@@ -20,7 +20,7 @@ export async function readGmail(accessToken,state={},request=fetch){
  const until=state.until??Date.now();const since=state.since??(state.completedAt?Date.parse(state.completedAt)-7*86400000:until-180*86400000);
  // Include inbox outreach AND archived application confirmations; exclude sent/drafts.
  const q=`after:${Math.floor(since/1000)} before:${Math.floor(until/1000)+1} -in:sent -in:drafts {application applying interview recruiter recruiting opportunity assessment candidacy candidate hiring "your profile" "your background" "reference check" "hiring manager" "phone screen"}`;
- const page=await get('messages',{q,maxResults:'50',pageToken:state.pageToken});const messages=[];
+ const page=await get('messages',{q,maxResults:'10',pageToken:state.pageToken});const messages=[];
  const items=page.messages??[];for(let i=0;i<items.length;i+=5){const batch=await Promise.all(items.slice(i,i+5).map(item=>get('messages/'+encodeURIComponent(item.id),{format:'full'})));messages.push(...batch);}
  const nextState=page.nextPageToken?{email:profile.emailAddress,since,until,pageToken:page.nextPageToken,completedAt:state.completedAt??null}:{email:profile.emailAddress,completedAt:new Date(until).toISOString()};
  return {messages,state:nextState,more:!!page.nextPageToken};
