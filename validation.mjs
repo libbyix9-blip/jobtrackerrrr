@@ -22,7 +22,7 @@ export function validateApplication(input){
     location:string(input.location??'','location',250),appliedAt:input.appliedAt?validDate(input.appliedAt,'application date'):null,
     source:string(input.source??'Manual','source',150,true),status:input.status,
     contact:string(input.contact??'','contact',300),summary:string(input.summary??'','update summary',2000),
-    notes:string(input.notes??'','notes',10000),url:httpURL(input.url??''),
+    notes:string(input.notes??'','notes',10000),url:httpURL(input.url??''),applicationUrl:httpURL(input.applicationUrl??''),
     lastResponseAt:input.lastResponseAt?validDate(input.lastResponseAt,'response date'):null};
 }
 export function validatePreferences(p){
