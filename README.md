@@ -2,14 +2,14 @@
 
 Live website: https://libbyix9-blip.github.io/jobtrackerrrr/
 
-A light sage-green application tracker with three views: Applications, To review, and Workspace. No backend hosting or paid server is required. Gmail is read through the owner's existing chat connection, on request. The website never receives Gmail credentials.
+A light sage-green job tracker with Applications, To review, and Settings. Refresh Gmail reads confirmations, incoming recruiting outreach, interview invitations and follow-ups directly in the browser. No paid backend is required.
 
 ## First use
 
-1. Create a passphrase of at least 8 characters on the website. Never send it to chat.
-2. The browser creates an RSA-OAEP key pair and encrypts the private key with a passphrase-derived AES key. The downloaded `careeros-sync-key.json` contains only the public encryption key and encrypted private-key envelope.
-3. Ask chat to check Gmail and use the downloaded sync key. Chat can encrypt updates using the public key without knowing the passphrase.
-4. Only `inbox.enc.json`, containing an encrypted envelope, is committed and published. Open the page and load the latest update to decrypt it locally.
+1. Unlock or create your encrypted tracker. Keep your passphrase private.
+2. Complete the one-time Google OAuth setup in [Gmail setup](docs/GMAIL-SYNC.md), then save the public client ID in Settings.
+3. Select **Refresh Gmail**, authorize read-only Google access, and review unclear matches in **To review**.
+4. Link incoming conversations to existing applications or save a new conversation without inventing an application date.
 
 Application edits persist encrypted in this browser. They are not automatically pushed to GitHub. Download an encrypted backup after edits; ask chat to publish that backup to carry edits across devices. Browser storage can be cleared; backups and the latest published snapshot are the recovery sources. Keep the passphrase separately: it cannot be recovered or reset.
 
@@ -19,7 +19,7 @@ Vault version 1 uses PBKDF2-SHA256 (600,000 iterations, random 16-byte salt), AE
 
 Gmail imports keep distinct roles separate, attach source-message links, and route uncertain role/date matches to review. Imports deduplicate stable record IDs; manual status edits and dismissed items survive repeated imports. Existing local CareerOS records/documents are not altered. Email bodies and attachments are not included in tracker snapshots.
 
-Daily unattended Gmail checks are not configured. Ask chat when you want an update. Gmail connection availability and account-plan limits still apply; no additional hosting subscription is used by this implementation.
+Checks run when you press Refresh Gmail, not on an unattended schedule. Keyword search and conservative rules can miss unusual messages. Up to 500 results are checked per click; larger checks continue on the next click. Google consent and API limits apply. See the setup guide for pagination, privacy and recovery behavior.
 
 ## Development and publication
 

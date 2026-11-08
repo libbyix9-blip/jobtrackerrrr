@@ -19,7 +19,7 @@ export function validateApplication(input){
   if(!STATUSES.includes(input.status))throw new InputError('Choose a supported application status.');
   if(input.lastResponseAt && input.lastResponseAt<input.appliedAt)throw new InputError('The recruiting response date cannot precede the application date.');
   return {company:string(input.company,'company',200,true),title:string(input.title,'job title',250,true),
-    location:string(input.location??'','location',250),appliedAt:validDate(input.appliedAt,'application date'),
+    location:string(input.location??'','location',250),appliedAt:input.appliedAt?validDate(input.appliedAt,'application date'):null,
     source:string(input.source??'Manual','source',150,true),status:input.status,
     contact:string(input.contact??'','contact',300),summary:string(input.summary??'','update summary',2000),
     notes:string(input.notes??'','notes',10000),url:httpURL(input.url??''),
