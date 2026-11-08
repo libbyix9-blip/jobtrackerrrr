@@ -6,7 +6,7 @@ import {validateApplication,toCSV,STATUSES} from './validation.mjs';
 const root=document.querySelector('#app'),modal=document.querySelector('#modal');
 const e=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const now=()=>new Date().toISOString(),today=()=>now().slice(0,10);
-const requestedPage=new URLSearchParams(location.search).get('page');
+const requestedPage=typeof location==='undefined'?'applications':new URL(location.href).searchParams.get('page');
 let vault=null,privateKey=null,data=null,cloud=null,page=['applications','reviews','settings','guide'].includes(requestedPage)?requestedPage:'applications',filter='All',quickFilter=null,search='',busy=false,syncing=false,lastActive=Date.now(),notice='';
 const emptyData=()=>({applications:[],reviews:[],dismissed:[],lastImport:null});
 const date=s=>s?new Date(s.slice(0,10)+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}):'Not confirmed';
