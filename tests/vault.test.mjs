@@ -25,3 +25,5 @@ test('imports deduplicate stable IDs, ignore deleted records and never regress n
  const old={applications:[{id:'a',status:'Interviewing',updatedAt:'2026-01-04'}],reviews:[],dismissed:['b']};const incoming={applications:[{id:'a',status:'Applied',updatedAt:'2026-01-01'},{id:'b',status:'Applied'}],reviews:[]};
  const merged=mergeUpdates(old,incoming);assert.equal(merged.applications.length,1);assert.equal(merged.applications[0].status,'Interviewing');assert.equal(old.applications[0].status,'Interviewing');
 });
+
+test('publication envelope rejects plaintext extras and unencrypted private key fields',()=>{assert.throws(()=>checkEnvelope({...created.vault,applications:[]}),/supported/);assert.throws(()=>checkEnvelope({...created.vault,publicKey:{...created.vault.publicKey,d:'private-material'}}),/unprotected/);assert.throws(()=>checkEnvelope({...created.vault,privateKey:{...created.vault.privateKey,password:'plaintext'}}),/unprotected/);});
