@@ -1,6 +1,14 @@
 // Conservative, local-only classification. Email text is data, never instructions.
 const norm=s=>String(s??'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
 function body(part){if(!part)return '';if(part.mimeType==='text/plain'&&part.body?.data){try{return new TextDecoder().decode(Uint8Array.from(atob(part.body.data.replaceAll('-','+').replaceAll('_','/')),c=>c.charCodeAt(0)));}catch{return '';}}if(part.mimeType==='text/html'&&part.body?.data){try{return new TextDecoder().decode(Uint8Array.from(atob(part.body.data.replaceAll('-','+').replaceAll('_','/')),c=>c.charCodeAt(0))).replace(/<style[\s\S]*?<\/style>|<script[\s\S]*?<\/script>/gi,'').replace(/<[^>]*>/g,' ').replace(/&nbsp;|&#160;/g,' ').replace(/&amp;/g,'&');}catch{return '';}}const parts=part.parts??[];const plain=parts.filter(p=>p.mimeType==='text/plain');return (plain.length?plain:parts).map(body).join('\n');}
+function jobPostingUrl(part){
+ const candidates=[];
+ const visit=p=>{if(!p)return;const data=p.body?.data;if(data){try{const raw=new TextDecoder().decode(Uint8Array.from(atob(data.replaceAll('-','+').replaceAll('_','/')),c=>c.charCodeAt(0)));if(p.mimeType==='text/html')for(const m of raw.matchAll(/\bhref\s*=\s*["']([^"']+)["']/gi))candidates.push(m[1].replaceAll('&amp;','&'));for(const m of raw.matchAll(/https?:\/\/[^\s<>"')]+/gi))candidates.push(m[0].replace(/[.,;!?]+$/,''));}catch{}}
+  for(const child of p.parts??[])visit(child);};
+ visit(part);
+ for(const candidate of candidates){try{const u=new URL(candidate);if(!['https:','http:'].includes(u.protocol)||u.username||u.password)continue;const host=u.hostname.toLowerCase(),path=u.pathname.toLowerCase();if(/(^|\.)(google|bing|facebook|linkedin)\.com$/.test(host)&&!/linkedin\.com$/.test(host))continue;if(/unsubscribe|tracking|click\./i.test(host+path))continue;if(/jobs?|careers?|greenhouse|lever\.co|ashbyhq|workdayjobs|myworkdayjobs|smartrecruiters|icims|workable|jobvite|taleo|linkedin\.com\/jobs/i.test(host+path))return u.href;}catch{}}
+ return '';
+}
 export function parseMessage(message){
  const headers=Object.fromEntries((message.payload?.headers??[]).map(h=>[h.name.toLowerCase(),h.value]));
  if(message.labelIds?.includes('SENT')||message.labelIds?.includes('DRAFT'))return null;
@@ -19,7 +27,7 @@ export function parseMessage(message){
  const pair=text.match(/(?:application for|applying for|interest in) (?:the )?(.{3,150}?) (?:role |position )?at ([^\n.!]{2,80})/i);
  const company=pair?.[2]?.trim()??'',title=pair?.[1]?.replace(/ (?:role|position)$/i,'').trim()??'';
  const updatedAt=new Date(Number(message.internalDate)).toISOString();
- return {id:'gmail-'+message.id,company,title,status,kind,summary:subject.slice(0,2000),contact:from.slice(0,300),updatedAt,appliedAt:kind==='confirmation'?updatedAt.slice(0,10):null,source:'Gmail',evidence:[{messageId:message.id,threadId:message.threadId,date:updatedAt}],reason:kind==='outreach'?'Incoming recruiting conversation. Confirm the employer and role; an application date is not assumed.':'Confirm the employer, role and whether this belongs to an existing application.'};
+ return {id:'gmail-'+message.id,company,title,status,kind,summary:subject.slice(0,2000),contact:from.slice(0,300),url:jobPostingUrl(message.payload),updatedAt,appliedAt:kind==='confirmation'?updatedAt.slice(0,10):null,source:'Gmail',evidence:[{messageId:message.id,threadId:message.threadId,date:updatedAt}],reason:kind==='outreach'?'Incoming recruiting conversation. Confirm the employer and role; an application date is not assumed.':'Confirm the employer, role and whether this belongs to an existing application.'};
 }
 export function integrateMessages(current,messages){
  const next=structuredClone(current);next.dismissed??=[];let added=0;
@@ -34,7 +42,7 @@ export function integrateMessages(current,messages){
   const old=candidates.length===1?candidates[0]:null;
   if(old){
    if(old.manualOverride&&event.status!==old.status&&event.updatedAt>old.updatedAt){next.reviews.push({...event,applicationId:old.id,company:old.company,title:old.title,reason:'This email suggests a different status from your manual edit. Confirm before changing it.'});}
-   else {old.evidence=[...(old.evidence??[]),...event.evidence];if(event.updatedAt>old.updatedAt&&!old.manualOverride)Object.assign(old,{status:event.kind==='outreach'&&['Interviewing','Assessment','Offer','Rejected','Withdrawn'].includes(old.status)?old.status:event.status,summary:event.summary,updatedAt:event.updatedAt,lastResponseAt:event.updatedAt.slice(0,10)});}
+   else {old.evidence=[...(old.evidence??[]),...event.evidence];old.url||=event.url;if(event.updatedAt>old.updatedAt&&!old.manualOverride)Object.assign(old,{status:event.kind==='outreach'&&['Interviewing','Assessment','Offer','Rejected','Withdrawn'].includes(old.status)?old.status:event.status,summary:event.summary,updatedAt:event.updatedAt,lastResponseAt:event.updatedAt.slice(0,10)});}
   }else if(event.company&&event.title&&event.kind==='confirmation'){next.applications.push(event);}
   else next.reviews.push(event);
   added++;
