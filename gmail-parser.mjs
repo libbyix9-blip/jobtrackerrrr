@@ -31,10 +31,16 @@ export function parseMessage(message){
  else if(/(?:invite you .{0,50}interview|schedule .{0,50}interview|interview (?:invitation|availability|confirmation|with)|(?:^|\n)(?:re: )?interview\b|availability .{0,50}interview|next round|(?:phone|video|introductory) (?:screen|interview))/i.test(signal)){status='Interviewing';kind='interview';}
  else if(/(?:complete .{0,40}assessment|assessment invitation|take.home (?:exercise|assignment))/i.test(signal)){status='Assessment';kind='assessment';}
  else if(/(?:reaching out|came across your (?:profile|background)|your (?:profile|background|experience) .{0,60}(?:impressed|fit|interest)|interested in .{0,50}(?:opportunity|role|position)|discuss .{0,50}(?:opportunity|role|position)|recruiting .{0,50}(?:role|position)|(?:availability|schedule|arrange) .{0,40}(?:recruiter|recruiting|introductory) (?:call|chat)|following up .{0,70}(?:interview|application|opportunity)|thank you for your interest|background check|reference check)/i.test(signal)){status='Recruiter Contact';kind='outreach';}
- else if(/(?:thank you for (?:applying|submitting your application)|application (?:received|confirmation)|received your application)/i.test(signal)){status='Applied';kind='confirmation';}
+ else if(/(?:thank you|thanks) for (?:applying|submitting your application)|application (?:was )?(?:received|submitted|sent|confirmation)|received your application/i.test(signal)){status='Applied';kind='confirmation';}
  else return null;
- const pair=text.match(/(?:application for|applying for|interest in) (?:the )?(.{3,150}?) (?:role |position )?at ([^\n.!]{2,80})/i);
- const company=pair?.[2]?.trim()??'',title=pair?.[1]?.replace(/ (?:role|position)$/i,'').trim()??'';
+ const pair=text.match(/(?:application for|applying for|interest in|applying to) (?:the )?(.{3,150}?) (?:role |position )?at ([^\n.!]{2,80})/i);
+ const titleOnly=text.match(/(?:applying to|application for) (?:the )?(.{3,150}?)\s+(?:role|position)\b/i)
+  ??text.match(/\brole below\s*:?\s*([^\n.!]{3,150})/i);
+ const companyFromText=pair?.[2]?.trim()??'';
+ // Some ATS templates name the role but omit the employer from the sentence.
+ // Use only explicit employer names, including the sender display name/address.
+ const company=companyFromText||(/\b(?:snapchat|snap inc\.?|snap hr)\b/i.test(text+' '+from)?'Snap':/\balo(?: yoga)?\b/i.test(text+' '+from)?'ALO':'');
+ const title=(pair?.[1]??titleOnly?.[1]??'').replace(/\s+(?:role|position)$/i,'').trim();
  const updatedAt=new Date(Number(message.internalDate)).toISOString();
  return {id:'gmail-'+message.id,company,title,status,kind,summary:subject.slice(0,2000),contact:from.slice(0,300),url:jobPostingUrl(message.payload),applicationUrl:applicationPageUrl(message.payload),updatedAt,appliedAt:kind==='confirmation'?updatedAt.slice(0,10):null,source:'Gmail',evidence:[{messageId:message.id,threadId:message.threadId,date:updatedAt}],reason:kind==='outreach'?'Incoming recruiting conversation. Confirm the employer and role; an application date is not assumed.':'Confirm the employer, role and whether this belongs to an existing application.'};
 }
