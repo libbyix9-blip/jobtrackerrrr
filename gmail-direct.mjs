@@ -1,5 +1,5 @@
 export const GMAIL_SCOPE='https://www.googleapis.com/auth/gmail.readonly';
-const GMAIL_QUERY_VERSION='applications-v2';
+const GMAIL_QUERY_VERSION='applications-v3';
 // Access tokens live only in this module's memory and are cleared when locking.
 let token=null,expires=0;
 export function clearGmailToken(){token=null;expires=0;}
@@ -23,9 +23,9 @@ export async function readGmail(accessToken,state={},request=fetch){
  // that fixed window; after completion, checks overlap by seven days.
  const until=resume?(state.until??Date.now()):Date.now();
  const since=resume?(state.since??(state.completedAt?Date.parse(state.completedAt)-7*86400000:until-180*86400000)):until-180*86400000;
- // Keep pages focused on application and recruiting language. LinkedIn job
- // alerts were crowding the 10-message pages and hiding actual confirmations.
- const q=`after:${Math.floor(since/1000)} before:${Math.floor(until/1000)+1} -in:sent -in:drafts -from:jobalerts-noreply@linkedin.com {application applied applying interview recruiter recruiting assessment "thank you for applying" "thanks for applying" "came across your profile" "discuss a role" "reaching out about" "reference check" "hiring manager" "phone screen"}`;
+ // Keep pages focused on application and recruiting subjects/phrases. Broad
+ // body terms were matching promotions, news, and job alerts ahead of real mail.
+ const q=`after:${Math.floor(since/1000)} before:${Math.floor(until/1000)+1} -in:sent -in:drafts -from:jobalerts-noreply@linkedin.com -from:editors-noreply@linkedin.com -category:promotions -category:social {subject:application subject:applied subject:applying subject:interview subject:recruiter subject:recruiting subject:assessment "thank you for applying" "thanks for applying" "we received your application" "your application was sent" "application was received" "thank you for your application" "application was submitted" "application status" "application progress" "came across your profile" "discuss a role" "reaching out about" "reference check" "hiring manager" "phone screen"}`;
  const page=await get('messages',{q,maxResults:'10',pageToken:resume?state.pageToken:null});const messages=[];
  const items=page.messages??[];for(let i=0;i<items.length;i+=5){const batch=await Promise.all(items.slice(i,i+5).map(item=>get('messages/'+encodeURIComponent(item.id),{format:'full'})));messages.push(...batch);}
  const nextState=page.nextPageToken?{email:profile.emailAddress,since,until,pageToken:page.nextPageToken,completedAt:resume?state.completedAt??null:null,queryVersion:GMAIL_QUERY_VERSION}:{email:profile.emailAddress,completedAt:new Date(until).toISOString(),queryVersion:GMAIL_QUERY_VERSION};
