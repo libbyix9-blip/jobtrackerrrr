@@ -1,4 +1,5 @@
 export const GMAIL_SCOPE='https://www.googleapis.com/auth/gmail.readonly';
+const GMAIL_QUERY_VERSION='applications-v2';
 // Access tokens live only in this module's memory and are cleared when locking.
 let token=null,expires=0;
 export function clearGmailToken(){token=null;expires=0;}
@@ -17,11 +18,16 @@ export function authorizeGmail(clientId){
 export async function readGmail(accessToken,state={},request=fetch){
  const get=async(path,params={})=>{const url=new URL('https://gmail.googleapis.com/gmail/v1/users/me/'+path);for(const [k,v]of Object.entries(params))if(v)url.searchParams.set(k,v);const r=await request(url,{headers:{Authorization:'Bearer '+accessToken},signal:AbortSignal.timeout(30000)});if(!r.ok){let detail='';try{const payload=await r.json();detail=payload.error?.message??'';}catch{}if(r.status===401)clearGmailToken();if(r.status===403)throw new Error(`Google denied Gmail access (${r.status})${detail?': '+detail:''}. Your saved records are unchanged.`);throw new Error(r.status===401?'Google access expired. Select Refresh Gmail to reconnect.':`Gmail could not finish this check (${r.status})${detail?': '+detail:''}. Your saved records are unchanged; try again.`);}return r.json();};
  const profile=await get('profile');if(state.email&&state.email.toLowerCase()!==profile.emailAddress.toLowerCase())throw new Error('This Google account differs from the mailbox already connected to this tracker. Select the original account.');
- const until=state.until??Date.now();const since=state.since??(state.completedAt?Date.parse(state.completedAt)-7*86400000:until-180*86400000);
- // Include inbox outreach AND archived application confirmations; exclude sent/drafts.
- const q=`after:${Math.floor(since/1000)} before:${Math.floor(until/1000)+1} -in:sent -in:drafts {application applying interview recruiter recruiting opportunity assessment candidacy candidate hiring "your profile" "your background" "reference check" "hiring manager" "phone screen"}`;
- const page=await get('messages',{q,maxResults:'10',pageToken:state.pageToken});const messages=[];
+ const resume=state.queryVersion===GMAIL_QUERY_VERSION;
+ // A search-rule change starts a fresh 180-day backfill. Later clicks resume
+ // that fixed window; after completion, checks overlap by seven days.
+ const until=resume?(state.until??Date.now()):Date.now();
+ const since=resume?(state.since??(state.completedAt?Date.parse(state.completedAt)-7*86400000:until-180*86400000)):until-180*86400000;
+ // Keep pages focused on application and recruiting language. LinkedIn job
+ // alerts were crowding the 10-message pages and hiding actual confirmations.
+ const q=`after:${Math.floor(since/1000)} before:${Math.floor(until/1000)+1} -in:sent -in:drafts -from:jobalerts-noreply@linkedin.com {application applied applying interview recruiter recruiting assessment "thank you for applying" "thanks for applying" "came across your profile" "discuss a role" "reaching out about" "reference check" "hiring manager" "phone screen"}`;
+ const page=await get('messages',{q,maxResults:'10',pageToken:resume?state.pageToken:null});const messages=[];
  const items=page.messages??[];for(let i=0;i<items.length;i+=5){const batch=await Promise.all(items.slice(i,i+5).map(item=>get('messages/'+encodeURIComponent(item.id),{format:'full'})));messages.push(...batch);}
- const nextState=page.nextPageToken?{email:profile.emailAddress,since,until,pageToken:page.nextPageToken,completedAt:state.completedAt??null}:{email:profile.emailAddress,completedAt:new Date(until).toISOString()};
+ const nextState=page.nextPageToken?{email:profile.emailAddress,since,until,pageToken:page.nextPageToken,completedAt:resume?state.completedAt??null:null,queryVersion:GMAIL_QUERY_VERSION}:{email:profile.emailAddress,completedAt:new Date(until).toISOString(),queryVersion:GMAIL_QUERY_VERSION};
  return {messages,state:nextState,more:!!page.nextPageToken};
 }

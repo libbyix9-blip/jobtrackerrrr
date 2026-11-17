@@ -31,16 +31,22 @@ export function parseMessage(message){
  else if(/(?:invite you .{0,50}interview|schedule .{0,50}interview|interview (?:invitation|availability|confirmation|with)|(?:^|\n)(?:re: )?interview\b|availability .{0,50}interview|next round|(?:phone|video|introductory) (?:screen|interview))/i.test(signal)){status='Interviewing';kind='interview';}
  else if(/(?:complete .{0,40}assessment|assessment invitation|take.home (?:exercise|assignment))/i.test(signal)){status='Assessment';kind='assessment';}
  else if(/(?:reaching out|came across your (?:profile|background)|your (?:profile|background|experience) .{0,60}(?:impressed|fit|interest)|interested in .{0,50}(?:opportunity|role|position)|discuss .{0,50}(?:opportunity|role|position)|recruiting .{0,50}(?:role|position)|(?:availability|schedule|arrange) .{0,40}(?:recruiter|recruiting|introductory) (?:call|chat)|following up .{0,70}(?:interview|application|opportunity)|thank you for your interest|background check|reference check)/i.test(signal)){status='Recruiter Contact';kind='outreach';}
- else if(/(?:thank you|thanks) for (?:applying|submitting your application)|application (?:was )?(?:received|submitted|sent|confirmation)|received your application/i.test(signal)){status='Applied';kind='confirmation';}
+ else if(/(?:thank you|thanks) for (?:applying|submitting your application|your application)|submit(?:ting)? an? application|application (?:was )?(?:received|submitted|sent|confirmation)|received your (?:job )?application|(?:confirming|progress update|status update).{0,60}application|application.{0,80}(?:submitted|received|progress update|status update)|(?:you(?:'ve| have) applied|application was sent to)/i.test(signal)){status='Applied';kind='confirmation';}
  else return null;
- const pair=text.match(/(?:application for|applying for|interest in|applying to) (?:the )?(.{3,150}?) (?:role |position )?at ([^\n.!]{2,80})/i);
- const titleOnly=text.match(/(?:applying to|application for) (?:the )?(.{3,150}?)\s+(?:role|position)\b/i)
-  ??text.match(/\brole below\s*:?\s*([^\n.!]{3,150})/i);
+ const pair=text.match(/(?:application for|applying for|interest in|applying to) (?:the )?(.{3,150}?) (?:role |position |job )?at ([^\n.!]{2,80})/i);
+ const titleOnly=text.match(/\bposition of\s+(.{3,150}?)(?:\s*\(?(?:ID|#)\s*:|\s*,\s*\d{5,}|[.!?\n])/i)
+  ??text.match(/(?:application for|applying for|applying to|applied to|interest in) (?:the )?([^\n.!?]{3,150}?)\s+(?:role|position|job)\b/i)
+  ??text.match(/\byou(?:'ve| have) applied to\s+([^.!?\n]{3,150})/i)
+  ??text.match(/\bapplication for\s+([^.!?\n]{3,150}?)(?:\s+(?:was|is)\s+(?:submitted|received)|[.!?\n])/i)
+  ??text.match(/\bshown in the\s+([^.!?\n]{3,150}?)\s+position\b/i)
+  ??text.match(/\brole below\s*:?\s*([^\n.!?]{3,150})/i);
  const companyFromText=pair?.[2]?.trim()??'';
  // Some ATS templates name the role but omit the employer from the sentence.
  // Use only explicit employer names, including the sender display name/address.
- const company=companyFromText||(/\b(?:snapchat|snap inc\.?|snap hr)\b/i.test(text+' '+from)?'Snap':/\balo(?: yoga)?\b/i.test(text+' '+from)?'ALO':'');
- const title=(pair?.[1]??titleOnly?.[1]??'').replace(/\s+(?:role|position)$/i,'').trim();
+ const evidenceText=text+' '+from;
+ const brands=[['Snap',/\b(?:snapchat|snap inc\.?|snap hr)\b/i],['ALO',/\balo(?: yoga)?\b/i],['Anthropic',/\banthropic\b/i],['PwC',/\b(?:pwc|pricewaterhousecoopers)\b/i],['Control Risks',/\bcontrol risks\b/i],['OpenAI',/\bopenai\b/i],['ModSquad',/\bmodsquad\b/i],['CAA',/\bCAA\b|creative artists agency/i],['Kroll',/\bkroll\b/i],['K2 Integrity',/\bk2 integrity\b/i],['Deloitte',/\bdeloitte\b/i],['Amazon',/\bamazon\b/i]];
+ const company=companyFromText||brands.find(([,pattern])=>pattern.test(evidenceText))?.[0]||'';
+ const title=(titleOnly?.[1]??pair?.[1]??'').replace(/\s+(?:role|position|job)$/i,'').trim();
  const updatedAt=new Date(Number(message.internalDate)).toISOString();
  return {id:'gmail-'+message.id,company,title,status,kind,summary:subject.slice(0,2000),contact:from.slice(0,300),url:jobPostingUrl(message.payload),applicationUrl:applicationPageUrl(message.payload),updatedAt,appliedAt:kind==='confirmation'?updatedAt.slice(0,10):null,source:'Gmail',evidence:[{messageId:message.id,threadId:message.threadId,date:updatedAt}],reason:kind==='outreach'?'Incoming recruiting conversation. Confirm the employer and role; an application date is not assumed.':'Confirm the employer, role and whether this belongs to an existing application.'};
 }
@@ -52,13 +58,14 @@ export function integrateMessages(current,messages){
   if(all.some(a=>(a.evidence??[]).some(e=>e.messageId===message.id)))continue;
   const threads=next.applications.filter(a=>(a.evidence??[]).some(e=>e.threadId&&e.threadId===message.threadId));
   const matches=next.applications.filter(a=>event.company&&event.title&&norm(a.company)===norm(event.company)&&norm(a.title)===norm(event.title));
+  const companyMatches=event.company&&!event.title&&event.kind==='confirmation'?next.applications.filter(a=>norm(a.company)===norm(event.company)):[];
   const compatible=threads.filter(a=>!event.title||norm(a.title)===norm(event.title));
-  const candidates=compatible.length===1?compatible:matches;
+  const candidates=compatible.length===1?compatible:matches.length?matches:companyMatches.length===1?companyMatches:[];
   const old=candidates.length===1?candidates[0]:null;
   if(old){
    if(old.manualOverride&&event.status!==old.status&&event.updatedAt>old.updatedAt){next.reviews.push({...event,applicationId:old.id,company:old.company,title:old.title,reason:'This email suggests a different status from your manual edit. Confirm before changing it.'});}
    else {old.evidence=[...(old.evidence??[]),...event.evidence];old.url||=event.url;old.applicationUrl||=event.applicationUrl;if(event.updatedAt>old.updatedAt&&!old.manualOverride)Object.assign(old,{status:event.kind==='outreach'&&['Interviewing','Assessment','Offer','Rejected','Withdrawn'].includes(old.status)?old.status:event.status,summary:event.summary,updatedAt:event.updatedAt,lastResponseAt:event.updatedAt.slice(0,10)});}
-  }else if(event.company&&event.title&&event.kind==='confirmation'){next.applications.push(event);}
+  }else if(event.company&&event.title&&['confirmation','decision','interview','assessment','offer'].includes(event.kind)){next.applications.push(event);}
   else next.reviews.push(event);
   added++;
  }
