@@ -13,6 +13,10 @@ A light sage-green job tracker with Applications, To review, and Settings. Refre
 
 Application edits persist encrypted in this browser. They are not automatically pushed to GitHub. Download an encrypted backup after edits; ask chat to publish that backup to carry edits across devices. Browser storage can be cleared; backups and the latest published snapshot are the recovery sources. Keep the passphrase separately: it cannot be recovered or reset.
 
+## LinkedIn applications
+
+CareerOS cannot directly read your personal LinkedIn job-application history. To bring those applications into CareerOS, request LinkedIn’s **Job Applications** data category, extract the CSV from the archive, then choose **To review → Import LinkedIn CSV**. Matching company, role, date, and job-link gaps are filled from the export; ambiguous email matches stay in To review. The CSV is read in your browser and the merged tracker remains encrypted in browser storage.
+
 ## Privacy and synchronization
 
 Vault version 1 uses PBKDF2-SHA256 (600,000 iterations, random 16-byte salt), AES-256-GCM (random 12-byte IVs), and RSA-OAEP/SHA256 with 3072-bit keys. Snapshot AES keys are wrapped with the public key. The private key is imported non-extractably after unlocking. No plaintext records, passphrase, OAuth tokens, or unencrypted private keys belong in this repository. Lock clears decrypted application state from the UI; the app also locks after 15 minutes of inactivity.
