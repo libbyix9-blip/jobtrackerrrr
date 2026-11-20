@@ -34,6 +34,7 @@ export function parseMessage(message){
  else if(/(?:thank you|thanks) for (?:applying|submitting your application|your application)|submit(?:ting)? an? application|application (?:was )?(?:received|submitted|sent|confirmation)|received your (?:job )?application|(?:confirming|progress update|status update).{0,60}application|application.{0,80}(?:submitted|received|progress update|status update)|(?:you(?:'ve| have) applied|application was sent to)/i.test(signal)){status='Applied';kind='confirmation';}
  else return null;
  const pair=text.match(/(?:application for|applying for|interest in|applying to) (?:the )?(.{3,150}?) (?:role |position |job )?at ([^\n.!]{2,80})/i);
+ const linkedinSent=text.match(/\byour application was sent to\s+([^\r\n.!?]{2,100})/i);
  const titleOnly=text.match(/\bposition of\s+(.{3,150}?)(?:\s*\(?(?:ID|#)\s*:|\s*,\s*\d{5,}|[.!?\n])/i)
   ??text.match(/(?:application for|applying for|applying to|applied to|interest in) (?:the )?([^\n.!?]{3,150}?)\s+(?:role|position|job)\b/i)
   ??text.match(/\byou(?:'ve| have) applied to\s+([^.!?\n]{3,150})/i)
@@ -45,8 +46,11 @@ export function parseMessage(message){
  // Use only explicit employer names, including the sender display name/address.
  const evidenceText=text+' '+from;
  const brands=[['Snap',/\b(?:snapchat|snap inc\.?|snap hr)\b/i],['ALO',/\balo(?: yoga)?\b/i],['Anthropic',/\banthropic\b/i],['PwC',/\b(?:pwc|pricewaterhousecoopers)\b/i],['Control Risks',/\bcontrol risks\b/i],['OpenAI',/\bopenai\b/i],['ModSquad',/\bmodsquad\b/i],['CAA',/\bCAA\b|creative artists agency/i],['Kroll',/\bkroll\b/i],['K2 Integrity',/\bk2 integrity\b/i],['Deloitte',/\bdeloitte\b/i],['Amazon',/\bamazon\b/i]];
- const company=companyFromText||brands.find(([,pattern])=>pattern.test(evidenceText))?.[0]||'';
- const title=(titleOnly?.[1]??pair?.[1]??'').replace(/\s+(?:role|position|job)$/i,'').trim();
+ const company=companyFromText||linkedinSent?.[1]?.trim().replace(/[\s,]+$/,'')||brands.find(([,pattern])=>pattern.test(evidenceText))?.[0]||'';
+ const linkedinLines=text.split(/\r?\n/).map(line=>line.trim()).filter(Boolean);
+ const companyLine=linkedinSent?linkedinLines.findIndex(line=>norm(line)===norm(company)):-1;
+ const linkedinTitle=companyLine>0?linkedinLines.slice(0,companyLine).reverse().find(line=>!/^your application was sent to\b/i.test(line)&&!/^libby,?\s+your application/i.test(line)&&!/^https?:\/\//i.test(line)):'';
+ const title=(titleOnly?.[1]??pair?.[1]??linkedinTitle??'').replace(/\s+(?:role|position|job)$/i,'').replace(/\s+/g,' ').trim();
  const updatedAt=new Date(Number(message.internalDate)).toISOString();
  return {id:'gmail-'+message.id,company,title,status,kind,summary:subject.slice(0,2000),contact:from.slice(0,300),url:jobPostingUrl(message.payload),applicationUrl:applicationPageUrl(message.payload),updatedAt,appliedAt:kind==='confirmation'?updatedAt.slice(0,10):null,source:'Gmail',evidence:[{messageId:message.id,threadId:message.threadId,date:updatedAt}],reason:kind==='outreach'?'Incoming recruiting conversation. Confirm the employer and role; an application date is not assumed.':'Confirm the employer, role and whether this belongs to an existing application.'};
 }
@@ -54,6 +58,18 @@ export function integrateMessages(current,messages){
  const next=structuredClone(current);next.dismissed??=[];let added=0;
  for(const message of [...messages].sort((a,b)=>Number(a.internalDate)-Number(b.internalDate))){
   const event=parseMessage(message);if(!event||next.dismissed.includes(event.id))continue;
+  const existingReview=next.reviews.find(a=>(a.evidence??[]).some(e=>e.messageId===message.id));
+  if(existingReview){
+   // Earlier versions left LinkedIn receipts in review because they did not
+   // extract the employer/title. Promote only when this same message now has
+   // both fields and a definite application confirmation.
+   if(event.kind==='confirmation'&&event.company&&event.title&&existingReview.source==='Gmail'&&!existingReview.applicationId){
+    next.reviews=next.reviews.filter(a=>a!==existingReview);
+    next.applications.push({...event,evidence:[...new Map([...(existingReview.evidence??[]),...event.evidence].map(item=>[item.messageId,item])).values()]});
+    added++;
+   }
+   continue;
+  }
   const all=[...next.applications,...next.reviews];
   if(all.some(a=>(a.evidence??[]).some(e=>e.messageId===message.id)))continue;
   const threads=next.applications.filter(a=>(a.evidence??[]).some(e=>e.threadId&&e.threadId===message.threadId));
